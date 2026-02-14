@@ -377,7 +377,7 @@ app.post('/api/auth/register', async (req, res) => {
     const accessToken = jwt.sign(
       { userId: admin.userId, email: admin.email, role: admin.role, schoolId: admin.schoolId },
       JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '3d' }
     );
 
     const refreshToken = jwt.sign(
@@ -450,7 +450,7 @@ app.post('/api/auth/login', async (req, res) => {
     const accessToken = jwt.sign(
       { userId: user.userId, email: user.email, role: user.role, schoolId: user.schoolId },
       JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '3d' }
     );
     
     const refreshToken = jwt.sign(
@@ -504,7 +504,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     const accessToken = jwt.sign(
       { userId: user.userId, email: user.email, role: user.role, schoolId: user.schoolId },
       JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '3d' }
     );
     
     res.json({ accessToken });
@@ -1955,7 +1955,7 @@ app.get('/api/sync/offline-data', authenticateToken, async (req, res) => {
 
 // ==================== REPORTS/ANALYTICS ROUTES ====================
 
-app.get('/api/reports/attendance-summary', authenticateToken, async (req, res) => {
+app.get('/api/reports/attendance-summary', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { startDate, endDate, classId } = req.query;
     const filter = { schoolId: req.user.schoolId };
@@ -2008,7 +2008,7 @@ app.get('/api/reports/attendance-summary', authenticateToken, async (req, res) =
   }
 });
 
-app.get('/api/reports/class-wise', authenticateToken, async (req, res) => {
+app.get('/api/reports/class-wise', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const filter = { schoolId: req.user.schoolId };
@@ -2027,13 +2027,19 @@ app.get('/api/reports/class-wise', authenticateToken, async (req, res) => {
         present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } }
       }},
       { $project: {
+        _id: 0,
         classId: '$_id',
         total: 1,
         present: 1,
         absent: { $subtract: ['$total', '$present'] },
-        percentage: { $round: [{ $multiply: [{ $divide: ['$present', '$total'] }, 100] }, 0] }
+        percentage: { $cond: [{ $eq: ['$total', 0] }, 0, { $round: [{ $multiply: [{ $divide: ['$present', '$total'] }, 100] }, 0] }] }
       }}
     ]);
+    
+    // Return early if no data
+    if (data.length === 0) {
+      return res.json([]);
+    }
     
     // Get class names
     const classIds = data.map(d => d.classId);
@@ -2049,9 +2055,9 @@ app.get('/api/reports/class-wise', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-});
+})
 
-app.get('/api/reports/student-wise', authenticateToken, async (req, res) => {
+app.get('/api/reports/student-wise', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { classId, belowThreshold } = req.query;
     const filter = { schoolId: req.user.schoolId };
@@ -2069,11 +2075,12 @@ app.get('/api/reports/student-wise', authenticateToken, async (req, res) => {
         present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } }
       }},
       { $project: {
+        _id: 0,
         studentId: '$_id',
         total: 1,
         present: 1,
         absent: { $subtract: ['$total', '$present'] },
-        percentage: { $round: [{ $multiply: [{ $divide: ['$present', '$total'] }, 100] }, 0] }
+        percentage: { $cond: [{ $eq: ['$total', 0] }, 0, { $round: [{ $multiply: [{ $divide: ['$present', '$total'] }, 100] }, 0] }] }
       }},
       { $sort: { percentage: 1 } }
     ]);
@@ -2082,6 +2089,11 @@ app.get('/api/reports/student-wise', authenticateToken, async (req, res) => {
     let filteredData = data;
     if (belowThreshold) {
       filteredData = data.filter(d => d.percentage < parseInt(belowThreshold));
+    }
+    
+    // Return early if no data
+    if (filteredData.length === 0) {
+      return res.json([]);
     }
     
     // Get student details
@@ -2105,7 +2117,7 @@ app.get('/api/reports/student-wise', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-});
+}
 
 // Teacher performance report
 app.get('/api/reports/teacher-performance', authenticateToken, requireAdmin, async (req, res) => {
@@ -2121,19 +2133,31 @@ app.get('/api/reports/teacher-performance', authenticateToken, requireAdmin, asy
         totalAbsent: { $sum: '$totalAbsent' }
       }},
       { $project: {
+        _id: 0,
         teacherId: '$_id',
         totalSessions: 1,
         totalPresent: 1,
         totalAbsent: 1,
         avgAttendance: {
-          $round: [{
-            $multiply: [{
-              $divide: ['$totalPresent', { $add: ['$totalPresent', '$totalAbsent'] }]
-            }, 100]
-          }, 0]
+          $cond: [
+            { $eq: [{ $add: ['$totalPresent', '$totalAbsent'] }, 0] },
+            0,
+            {
+              $round: [{
+                $multiply: [{
+                  $divide: ['$totalPresent', { $add: ['$totalPresent', '$totalAbsent'] }]
+                }, 100]
+              }, 0]
+            }
+          ]
         }
       }}
     ]);
+    
+    // Return early if no data
+    if (data.length === 0) {
+      return res.json([]);
+    }
     
     // Get teacher names
     const teacherIds = data.map(d => d.teacherId);
@@ -2148,7 +2172,7 @@ app.get('/api/reports/teacher-performance', authenticateToken, requireAdmin, asy
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-});
+})
 
 // ==================== SEED DATA ====================
 
