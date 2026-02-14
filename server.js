@@ -11,30 +11,32 @@ const app = express();
 const PORT = process.env.PORT || 8001;
 
 // Middleware
-const corsOrigins = process.env.CORS_ORIGINS 
-  ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:3001'];
+// const corsOrigins = process.env.CORS_ORIGINS 
+//   ? process.env.CORS_ORIGINS.split(',')
+//   : ['http://localhost:3000', 'http://localhost:3001'];
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
+app.use(cors())
+
+// app.use(cors({
+//   origin: (origin, callback) => {
+//     // Allow requests with no origin (mobile apps, Postman, etc.)
+//     if (!origin) return callback(null, true);
     
-    // Check if origin is in allowed list or from local network
-    const isAllowed = corsOrigins.includes(origin) || 
-                      origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/);
+//     // Check if origin is in allowed list or from local network
+//     const isAllowed = corsOrigins.includes(origin) || 
+//                       origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/);
     
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json({ limit: '50mb' }));
+//     if (isAllowed) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error('Not allowed by CORS'));
+//     }
+//   },
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization']
+// }));
+// app.use(express.json({ limit: '50mb' }));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL, {
