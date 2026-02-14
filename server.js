@@ -2387,6 +2387,11 @@ app.get('/api', (req, res) => {
   res.json({ message: 'MARKIT API Server' });
 });
 
+app.get('/', (req, res) => {
+  res.send("Server running")
+  res.json({ message: 'MARKIT API Server' });
+});
+
 // Start server
 if (require.main === module) {
   app.listen(PORT, () => {
