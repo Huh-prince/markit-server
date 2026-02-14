@@ -10,39 +10,22 @@ const app = express();
 const PORT = process.env.PORT || 8001;
 
 // Middleware - Manual CORS for better serverless compatibility
+// Middleware - Allow all origins for testing
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Parse allowed origins
-  const parseOrigins = (value) => (value || '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  console.log('[CORS]', req.method, req.url, 'Origin:', origin);
   
-  const allowedOrigins = Array.from(new Set([
-    ...parseOrigins(process.env.CORS_ORIGINS),
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ]));
-  
-  // Check if origin is allowed
-  const isAllowed = !origin || // No origin (Postman, mobile)
-    allowedOrigins.includes(origin) ||
-    origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/);
-  
-  if (isAllowed && origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (!origin) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  
+  // Allow all origins for testing
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.setHeader('Access-Control-Max-Age', '86400');
   
   // Handle preflight
   if (req.method === 'OPTIONS') {
+    console.log('[CORS] Handling OPTIONS preflight');
     return res.status(204).end();
   }
   
