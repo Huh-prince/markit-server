@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
@@ -10,40 +9,46 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8001;
 
-// Middleware
-const parseOrigins = (value) => (value || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// Middleware - Manual CORS for better serverless compatibility
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Parse allowed origins
+  const parseOrigins = (value) => (value || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  
+  const allowedOrigins = Array.from(new Set([
+    ...parseOrigins(process.env.CORS_ORIGINS),
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ]));
+  
+  // Check if origin is allowed
+  const isAllowed = !origin || // No origin (Postman, mobile)
+    allowedOrigins.includes(origin) ||
+    origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/);
+  
+  if (isAllowed && origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
 
-const corsOrigins = Array.from(new Set([
-  ...parseOrigins(process.env.CORS_ORIGINS),
-  'http://localhost:3000',
-  'http://localhost:3001'
-]));
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-
-    // Check if origin is in allowed list or from local network
-    const isAllowed = corsOrigins.includes(origin) ||
-      origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/);
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB Connection
