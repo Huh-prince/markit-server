@@ -1955,17 +1955,26 @@ app.get('/api/sync/offline-data', authenticateToken, async (req, res) => {
 
 // ==================== REPORTS/ANALYTICS ROUTES ====================
 
-app.get('/api/reports/attendance-summary', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/reports/attendance-summary', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate, classId } = req.query;
     const filter = { schoolId: req.user.schoolId };
+    
+    // If user is teacher, only allow access to assigned classes
+    if (req.user.role === 'teacher' && req.user.assignedClasses) {
+      if (classId && !req.user.assignedClasses.includes(classId)) {
+        return res.status(403).json({ error: 'Not authorized to view this class' });
+      }
+      filter.classId = classId || { $in: req.user.assignedClasses };
+    } else if (classId) {
+      filter.classId = classId;
+    }
     
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate);
       if (endDate) filter.date.$lte = new Date(endDate);
     }
-    if (classId) filter.classId = classId;
     
     const records = await AttendanceRecord.find(filter);
     
@@ -2008,10 +2017,15 @@ app.get('/api/reports/attendance-summary', authenticateToken, requireAdmin, asyn
   }
 });
 
-app.get('/api/reports/class-wise', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/reports/class-wise', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const filter = { schoolId: req.user.schoolId };
+    
+    // If user is teacher, only allow access to assigned classes
+    if (req.user.role === 'teacher' && req.user.assignedClasses?.length > 0) {
+      filter.classId = { $in: req.user.assignedClasses };
+    }
     
     if (startDate || endDate) {
       filter.date = {};
@@ -2057,11 +2071,20 @@ app.get('/api/reports/class-wise', authenticateToken, requireAdmin, async (req, 
   }
 });
 
-app.get('/api/reports/student-wise', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/reports/student-wise', authenticateToken, async (req, res) => {
   try {
     const { classId, belowThreshold } = req.query;
     const filter = { schoolId: req.user.schoolId };
-    if (classId) filter.classId = classId;
+    
+    // If user is teacher, only allow access to assigned classes
+    if (req.user.role === 'teacher' && req.user.assignedClasses) {
+      if (classId && !req.user.assignedClasses.includes(classId)) {
+        return res.status(403).json({ error: 'Not authorized to view this class' });
+      }
+      filter.classId = classId || { $in: req.user.assignedClasses };
+    } else if (classId) {
+      filter.classId = classId;
+    }
     
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
