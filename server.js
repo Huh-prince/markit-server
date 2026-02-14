@@ -264,6 +264,26 @@ const Notification = mongoose.model('Notification', notificationSchema);
 const Announcement = mongoose.model('Announcement', announcementSchema);
 const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
+// Clean up stale active sessions on startup
+connectDB().then(async () => {
+  try {
+    const result = await AttendanceSession.updateMany(
+      { status: 'active' },
+      { 
+        $set: { 
+          status: 'completed',
+          endTime: new Date()
+        }
+      }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Auto-ended ${result.modifiedCount} stale active session(s)`);
+    }
+  } catch (err) {
+    console.error('Error cleaning up sessions:', err);
+  }
+});
+
 // ==================== MIDDLEWARE ====================
 
 const JWT_SECRET = process.env.JWT_SECRET || 'markit-secret-key-2024';
@@ -1321,8 +1341,12 @@ app.post('/api/attendance/sessions', authenticateToken, async (req, res) => {
       date: { $gte: today }
     });
     
+    // If active session exists, end it automatically before creating new one
     if (existing && existing.status === 'active') {
-      return res.status(400).json({ error: 'Active session already exists for this class and session type' });
+      existing.status = 'completed';
+      existing.endTime = new Date();
+      await existing.save();
+      console.log('Auto-ended existing active session:', existing.sessionId);
     }
     
     const session = new AttendanceSession({
@@ -1398,9 +1422,28 @@ app.get('/api/attendance/records', authenticateToken, async (req, res) => {
     if (skip) query = query.skip(parseInt(skip));
     
     const records = await query.select('-__v');
+    
+    // Populate student names
+    const studentIds = [...new Set(records.map(r => r.studentId))];
+    const students = await Student.find({ 
+      studentId: { $in: studentIds },
+      schoolId: req.user.schoolId 
+    }).select('studentId name rollNo');
+    
+    const studentMap = {};
+    students.forEach(s => {
+      studentMap[s.studentId] = { name: s.name, rollNo: s.rollNo };
+    });
+    
+    const recordsWithNames = records.map(record => ({
+      ...record.toObject(),
+      studentName: studentMap[record.studentId]?.name || 'Unknown',
+      studentRollNo: studentMap[record.studentId]?.rollNo || 'N/A'
+    }));
+    
     const total = await AttendanceRecord.countDocuments(filter);
     
-    res.json({ records, total });
+    res.json({ records: recordsWithNames, total });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
