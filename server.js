@@ -2055,7 +2055,7 @@ app.get('/api/reports/class-wise', authenticateToken, requireAdmin, async (req, 
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-})
+});
 
 app.get('/api/reports/student-wise', authenticateToken, requireAdmin, async (req, res) => {
   try {
@@ -2117,7 +2117,7 @@ app.get('/api/reports/student-wise', authenticateToken, requireAdmin, async (req
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-}
+});
 
 // Teacher performance report
 app.get('/api/reports/teacher-performance', authenticateToken, requireAdmin, async (req, res) => {
@@ -2172,7 +2172,7 @@ app.get('/api/reports/teacher-performance', authenticateToken, requireAdmin, asy
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
-})
+});
 
 // ==================== SEED DATA ====================
 
