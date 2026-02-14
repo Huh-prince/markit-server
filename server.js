@@ -35,10 +35,36 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URL, {
-  dbName: process.env.DB_NAME
-}).then(() => console.log('MongoDB Connected'))
+// MongoDB Connection with serverless-friendly config
+const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    return; // Already connected
+  }
+  
+  return mongoose.connect(process.env.MONGO_URL, {
+    dbName: process.env.DB_NAME,
+    maxPoolSize: 10, // Maintain up to 10 socket connections
+    serverSelectionTimeoutMS: 5000, // Keep trying for 5 seconds
+    socketTimeoutMS: 1000 * 60 * 60 * 24, // Close sockets after 45 seconds of inactivity
+    family: 4 // Use IPv4, skip trying IPv6
+  });
+};
+
+// Connect on startup
+connectDB()
+  .then(() => console.log('MongoDB Connected'))
   .catch(err => console.error('MongoDB connection error:', err));
+
+// Reconnect before each request in serverless environment
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('DB reconnection failed:', err);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
+});
 
 // ==================== SCHEMAS ====================
 
