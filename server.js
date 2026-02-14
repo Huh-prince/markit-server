@@ -2388,7 +2388,7 @@ app.get('/api', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send("Server running")
+  res.send("Server running on test api")
   res.json({ message: 'MARKIT API Server' });
 });
 
